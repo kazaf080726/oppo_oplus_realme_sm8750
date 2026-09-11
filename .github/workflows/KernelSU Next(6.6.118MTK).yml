@@ -264,7 +264,7 @@ jobs:
           ls -la
           if [[ "${{ github.event.inputs.ksu_type }}" == "next" ]]; then
             echo "正在配置 KernelSU-Next【next稳定分支】..."
-            curl -LSs "https://raw.githubusercontent.com/KernelSU-Next/KernelSU-Next/next/kernel/setup.sh" | bash -
+            curl -LSs "https://raw.githubusercontent.com/KernelSU-Next/KernelSU-Next/next/kernel/setup.sh" | bash -s next
             cd KernelSU-Next
             rm -rf .git
             # 获取next分支提交总数
