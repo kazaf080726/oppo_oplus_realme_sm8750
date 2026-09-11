@@ -262,7 +262,7 @@ jobs:
           cd kernel_workspace
           if [[ "${{ github.event.inputs.ksu_type }}" == "next" ]]; then
             echo "正在配置 KernelSU‑Next【next稳定分支】..."
-            curl -LSs "https://raw.githubusercontent.com/KernelSU‑Next/KernelSU‑Next/next/kernel/setup.sh" | bash -s next
+            curl -LSs "https://raw.githubusercontent.com/KernelSU-Next/KernelSU-Next/next/kernel/setup.sh" | bash -
             cd KernelSU‑Next
             rm -rf .git
             # 获取next分支提交总数
@@ -278,7 +278,7 @@ jobs:
             patch -p2 -N -F 3 < apk_sign.patch || true
           elif [[ "${{ github.event.inputs.ksu_type }}" == "dev‑susfs" ]]; then
             echo "正在配置 KernelSU‑Next【dev‑susfs开发分支】..."
-            curl -LSs "https://raw.githubusercontent.com/KernelSU‑Next/KernelSU‑Next/dev‑susfs/kernel/setup.sh" | bash -s dev‑susfs
+            curl -LSs "https://raw.githubusercontent.com/KernelSU-Next/KernelSU-Next/next/kernel/setup.sh" | bash -s next
             cd KernelSU‑Next
             rm -rf .git
             KSU_VERSION=$(expr $(git rev-list --count dev‑susfs) + 30000 2>/dev/null || echo 114514)
