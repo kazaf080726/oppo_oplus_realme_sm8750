@@ -330,20 +330,45 @@ jobs:
           echo "正在拉取 NoMount-Suite..."
           rm -rf NoMount-Suite
           git clone --depth=1 https://github.com/Bouteillepleine/NoMount-Suite.git NoMount-Suite
+
+          echo "检查 NoMount-Suite 目录结构："
+          ls -la NoMount-Suite/hookless/src/ || true
+
           cd common
-          echo "复制 Prism 引擎源码..."
+          echo "复制 Prism 引擎源码与头文件..."
           cp ../NoMount-Suite/hookless/src/nomount.c ./fs/nomount.c
+          # 关键修复：头文件放到 fs/ 旁边（nomount.c 用 #include "nomount.h"）
+          cp ../NoMount-Suite/hookless/src/nomount.h ./fs/nomount.h
+          # 同时也放一份到 include/linux/，兼容任何用 <linux/nomount.h> 的代码
           cp ../NoMount-Suite/hookless/src/nomount.h ./include/linux/nomount.h
+
+          echo "确认头文件已就位："
+          ls -la ./fs/nomount.c ./fs/nomount.h ./include/linux/nomount.h
+
           echo "查找并应用 NoMount 集成补丁..."
           find ../NoMount-Suite/hookless -maxdepth 3 -name '*.patch' > /tmp/nomount_patches.txt
           if [ ! -s /tmp/nomount_patches.txt ]; then
             echo "未找到 NoMount 集成补丁，请检查 NoMount-Suite/hookless 目录"
             exit 1
           fi
+
           while IFS= read -r p; do
             echo "应用补丁: $p"
-            patch -p1 -F 3 < "$p"
+            if ! patch -p1 -F 3 --no-backup-if-mismatch < "$p"; then
+              echo "!! 补丁应用失败: $p"
+              echo "---- 打印所有 .rej 文件 ----"
+              find . -name '*.rej' -print -exec sed -n '1,120p' {} \;
+              exit 1
+            fi
           done < /tmp/nomount_patches.txt
+
+          # 兜底：即使 patch 返回 0，也检查有没有 .rej
+          if find . -name '*.rej' | grep -q .; then
+            echo "!! 检测到 .rej 文件，补丁未完全应用："
+            find . -name '*.rej' -print
+            exit 1
+          fi
+
           echo "启用 CONFIG_NOMOUNT=y"
           if ! grep -q '^CONFIG_NOMOUNT=y' ./arch/arm64/configs/gki_defconfig; then
             echo "CONFIG_NOMOUNT=y" >> ./arch/arm64/configs/gki_defconfig
