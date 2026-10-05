@@ -337,13 +337,16 @@ jobs:
           cd common
           echo "复制 Prism 引擎源码与头文件..."
           cp ../NoMount-Suite/hookless/src/nomount.c ./fs/nomount.c
-          # 关键修复：头文件放到 fs/ 旁边（nomount.c 用 #include "nomount.h"）
           cp ../NoMount-Suite/hookless/src/nomount.h ./fs/nomount.h
-          # 同时也放一份到 include/linux/，兼容任何用 <linux/nomount.h> 的代码
           cp ../NoMount-Suite/hookless/src/nomount.h ./include/linux/nomount.h
 
           echo "确认头文件已就位："
           ls -la ./fs/nomount.c ./fs/nomount.h ./include/linux/nomount.h
+
+          # === 记录应用我们补丁之前已经存在的 .rej ===
+          echo "记录已有 .rej 文件（可能是前面 SUSFS/zstd 等步骤留下的）："
+          find . -name '*.rej' | sort > /tmp/rej_before.txt || true
+          cat /tmp/rej_before.txt || true
 
           echo "查找并应用 NoMount 集成补丁..."
           find ../NoMount-Suite/hookless -maxdepth 3 -name '*.patch' > /tmp/nomount_patches.txt
@@ -356,18 +359,25 @@ jobs:
             echo "应用补丁: $p"
             if ! patch -p1 -F 3 --no-backup-if-mismatch < "$p"; then
               echo "!! 补丁应用失败: $p"
-              echo "---- 打印所有 .rej 文件 ----"
-              find . -name '*.rej' -print -exec sed -n '1,120p' {} \;
+              echo "---- 打印该补丁产生的 .rej ----"
+              find . -name '*.rej' -newer /tmp/rej_before.txt -print -exec sed -n '1,120p' {} \;
               exit 1
             fi
           done < /tmp/nomount_patches.txt
 
-          # 兜底：即使 patch 返回 0，也检查有没有 .rej
-          if find . -name '*.rej' | grep -q .; then
-            echo "!! 检测到 .rej 文件，补丁未完全应用："
-            find . -name '*.rej' -print
+          # === 只对本次新产生的 .rej 报错 ===
+          find . -name '*.rej' | sort > /tmp/rej_after.txt || true
+          NEW_REJ=$(comm -13 /tmp/rej_before.txt /tmp/rej_after.txt || true)
+          if [ -n "$NEW_REJ" ]; then
+            echo "!! NoMount 补丁产生了新的 .rej："
+            echo "$NEW_REJ"
+            echo "---- 内容 ----"
+            echo "$NEW_REJ" | while read -r f; do
+              [ -n "$f" ] && sed -n '1,120p' "$f"
+            done
             exit 1
           fi
+          echo "NoMount 补丁应用干净（无新增 .rej）"
 
           echo "启用 CONFIG_NOMOUNT=y"
           if ! grep -q '^CONFIG_NOMOUNT=y' ./arch/arm64/configs/gki_defconfig; then
