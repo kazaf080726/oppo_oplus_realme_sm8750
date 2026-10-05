@@ -702,16 +702,24 @@ jobs:
           sudo rm -rf /opt/ghc &
           sudo rm -rf /opt/hostedtoolcache/CodeQL &
 
-          # ========== 新增：禁用 BTF 调试信息，避免 pahole 版本冲突 ==========
-          echo "正在禁用 CONFIG_DEBUG_INFO_BTF..."
-          ./scripts/config --file ./out/.config --disable DEBUG_INFO_BTF
-          # ===================================================================
+          # ========== 第一步：先生成 defconfig，让 out/.config 存在 ==========
+          echo "正在生成 gki_defconfig 到 out/..."
+          make -j$(nproc --all) LLVM=1 ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- CC="ccache clang" LD=ld HOSTLD=ld O=out KCFLAGS+=-O2 KCFLAGS+=-Wno-error gki_defconfig
 
-          # ========== 修改：使用 GNU ld 替代 ld.lld，避免 GOT/PLT 断言失败 ==========
+          if [ ! -f out/.config ]; then
+            echo "ERROR: out/.config 未生成，make gki_defconfig 可能失败"
+            ls -al out || true
+            exit 1
+          fi
+
+          # ========== 第二步：禁用 BTF（现在 out/.config 存在了） ==========
+          echo "正在禁用 CONFIG_DEBUG_INFO_BTF..."
+          ./scripts/config --file out/.config --disable DEBUG_INFO_BTF
+          grep -n "DEBUG_INFO_BTF" out/.config || true
+
+          # ========== 第三步：使用 GNU ld 链接内核 ==========
           echo "正在使用 GNU ld 链接内核..."
-          make -j$(nproc --all) LLVM=1 ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- CC="ccache clang" LD=ld HOSTLD=ld O=out KCFLAGS+=-O2 KCFLAGS+=-Wno-error gki_defconfig &&
           make -j$(nproc --all) LLVM=1 ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- CC="$(pwd)/cc-wrapper" LD=ld HOSTLD=ld O=out KCFLAGS+=-O2 KCFLAGS+=-Wno-error Image
-          # =================================================================================
           
           # 编译后时间劫持二次校验
           echo "--- 编译后环境时间: $(LD_PRELOAD=$PRELOAD_LIBS date) ---"
