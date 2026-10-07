@@ -727,8 +727,9 @@ jobs:
           # 5. 管理器名称中的空格统一替换为下划线，避免文件名带空格
           KSU_TYPENAME_FMT="${KSU_TYPENAME// /_}"
 
-          # 6. 最终文件名格式：(管理器名称)内核版本号[Root版本号][平台].zip
-          AK3_NAME="(${KSU_TYPENAME_FMT})${KERNEL_VER}[${ROOT_VER}][${PLATFORM}].zip"
+          # 6. 最终文件名格式：(管理器名称)内核版本号【Root版本号】【平台】.zip
+          # 注意：文件名里不要用半角 [] ，upload-artifact 会把它当成 glob 通配符导致找不到文件
+          AK3_NAME="(${KSU_TYPENAME_FMT})${KERNEL_VER}【${ROOT_VER}】【${PLATFORM}】.zip"
           echo "生成 AK3 文件名：$AK3_NAME"
           # ==========================================
 
@@ -775,7 +776,7 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: ${{ steps.create_zip.outputs.ak3name }}
-          path: ${{ github.workspace }}/kernel_workspace/${{ steps.create_zip.outputs.ak3name }}
+          path: ${{ github.workspace }}/kernel_workspace/*.zip
           archive: false
 
   release:
