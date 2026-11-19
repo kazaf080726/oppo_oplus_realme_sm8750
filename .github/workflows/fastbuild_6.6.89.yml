@@ -320,6 +320,7 @@ jobs:
                   '\t\t\tpr_warn("selinux_hide: auto-enable failed: %d\\n", ret);\n'
                   '\t}\n'
               )
+              s = s.replace(marker, 'static int selinux_hide_feature_set(u64 value);\n\n' + marker, 1)
               s = s.replace(marker, marker + code, 1)
               open(p, 'w').write(s)
           PY
