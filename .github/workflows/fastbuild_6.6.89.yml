@@ -330,26 +330,25 @@ jobs:
         run: |
           cd kernel_workspace
           python3 - <<'PY'
-          import os
-
           hide = 'common/drivers/kernelsu/feature/selinux_hide.c'
           s = open(hide).read()
           old = 'memcpy(new_status, status, sizeof(*status));'
-          if old in s and 'new_status->policyload = 1;' not in s:
-              s = s.replace(old, old + '\n    new_status->policyload = 1;', 1)
-              open(hide, 'w').write(s)
+          if old in s and 'new_status->policyload = 0;' not in s:
+              s = s.replace(old, old + '\n    new_status->policyload = 0;', 1)
+          s = s.replace('new_status->policyload = 1;', 'new_status->policyload = 0;')
+          s = s.replace('avd.seqno = 1;', 'avd.seqno = 0;')
+          open(hide, 'w').write(s)
 
           fs = 'common/security/selinux/selinuxfs.c'
           s = open(fs).read()
           old = 'susfs_security_compute_av_user(ssid, tsid, tclass, &avd);'
-          if old in s and 'avd.seqno = 1;' not in s:
-              s = s.replace(old, old + '\n\tavd.seqno = 1;', 1)
-              open(fs, 'w').write(s)
-
-          print('seqno aligned')
+          if old in s and 'avd.seqno = 0;' not in s:
+              s = s.replace(old, old + '\n\tavd.seqno = 0;', 1)
+          s = s.replace('avd.seqno = 1;', 'avd.seqno = 0;')
+          open(fs, 'w').write(s)
           PY
-          grep -n 'new_status->policyload = 1' common/drivers/kernelsu/feature/selinux_hide.c
-          grep -n 'avd.seqno = 1' common/security/selinux/selinuxfs.c || true
+          grep -n 'policyload = 0' common/drivers/kernelsu/feature/selinux_hide.c | head
+          grep -n 'avd.seqno = 0' common/security/selinux/selinuxfs.c common/drivers/kernelsu/feature/selinux_hide.c | head
 
       - name: 固定 SukiSU CI 版本号
         if: inputs.ksu_type == 'sukisu'
@@ -364,6 +363,13 @@ jobs:
                   open(p, 'w').write(s)
           PY
           grep -R '^KSU_VERSION' common/drivers/kernelsu/Kbuild common/drivers/kernelsu/Makefile 2>/dev/null | head
+
+      - name: 启用 Seccomp 过滤
+        run: |
+          cd kernel_workspace
+          echo "CONFIG_SECCOMP=y" >> ./common/arch/arm64/configs/gki_defconfig
+          echo "CONFIG_SECCOMP_FILTER=y" >> ./common/arch/arm64/configs/gki_defconfig
+          echo "CONFIG_HAVE_ARCH_SECCOMP_FILTER=y" >> ./common/arch/arm64/configs/gki_defconfig
 
       - name: 应用 KernelSU & SUSFS 补丁
         if: inputs.susfs_enable
@@ -818,6 +824,13 @@ jobs:
           ccache -s
           echo "编译后空间:"
           df -h
+
+      - name: 校验 Seccomp 配置
+        run: |
+          cd kernel_workspace
+          grep -q '^CONFIG_SECCOMP=y' ./common/out/.config
+          grep -q '^CONFIG_SECCOMP_FILTER=y' ./common/out/.config
+          echo "Seccomp config OK"
 
       - name: 校验 NoMount 与功能配置
         if: always()
