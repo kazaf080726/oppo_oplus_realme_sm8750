@@ -499,9 +499,9 @@ jobs:
               raise SystemExit('ksu_feature_init marker missing')
           if 'KSU_FEATURE_SELINUX_HIDE, forced_pending' not in s:
               inject = (
-                  '\\tforced_values[KSU_FEATURE_SELINUX_HIDE] = 1;\\n'
-                  '\\tset_bit(KSU_FEATURE_SELINUX_HIDE, forced_mask);\\n'
-                  '\\tset_bit(KSU_FEATURE_SELINUX_HIDE, forced_pending);\\n'
+                  '\tforced_values[KSU_FEATURE_SELINUX_HIDE] = 1;\n'
+                  '\tset_bit(KSU_FEATURE_SELINUX_HIDE, forced_mask);\n'
+                  '\tset_bit(KSU_FEATURE_SELINUX_HIDE, forced_pending);\n'
               )
               s = s.replace(marker, marker + inject, 1)
               open(p, 'w').write(s)
@@ -513,7 +513,7 @@ jobs:
           if marker not in s:
               raise SystemExit('drop_backup marker missing')
           if 'return;' not in s[s.find(marker):s.find(marker) + 200]:
-              s = s.replace(marker, marker + '\\treturn;\\n', 1)
+              s = s.replace(marker, marker + '\treturn;\n', 1)
           open(p, 'w').write(s)
 
           # 3) policy dump 过滤不再依赖 running，只要 backup 存在就返回 backup
