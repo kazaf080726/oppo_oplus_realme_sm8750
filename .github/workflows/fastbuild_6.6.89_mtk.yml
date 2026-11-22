@@ -487,6 +487,47 @@ jobs:
           grep -n 'security_read_policy_from' common/security/selinux/ss/services.c common/security/selinux/selinuxfs.c
           grep -n 'ksu_selinux_hide_is_running' common/drivers/kernelsu/feature/selinux_hide.c
 
+      - name: 强制启用 SELinux hide 并保留 backup
+        run: |
+          cd kernel_workspace
+          python3 - <<'PY'
+          # 1) force_feature=selinux_hide:1 等价：boot 各阶段自动重试
+          p = 'common/drivers/kernelsu/policy/feature.c'
+          s = open(p).read()
+          marker = 'void __init ksu_feature_init(void)\n{\n'
+          if marker not in s:
+              raise SystemExit('ksu_feature_init marker missing')
+          if 'KSU_FEATURE_SELINUX_HIDE, forced_pending' not in s:
+              inject = (
+                  '\\tforced_values[KSU_FEATURE_SELINUX_HIDE] = 1;\\n'
+                  '\\tset_bit(KSU_FEATURE_SELINUX_HIDE, forced_mask);\\n'
+                  '\\tset_bit(KSU_FEATURE_SELINUX_HIDE, forced_pending);\\n'
+              )
+              s = s.replace(marker, marker + inject, 1)
+              open(p, 'w').write(s)
+
+          # 2) 保留 backup_sepolicy，避免 boot_completed 提前释放
+          p = 'common/drivers/kernelsu/feature/selinux_hide.c'
+          s = open(p).read()
+          marker = 'void ksu_selinux_hide_drop_backup_if_unused()\n{\n'
+          if marker not in s:
+              raise SystemExit('drop_backup marker missing')
+          if 'return;' not in s[s.find(marker):s.find(marker) + 200]:
+              s = s.replace(marker, marker + '\\treturn;\\n', 1)
+          open(p, 'w').write(s)
+
+          # 3) policy dump 过滤不再依赖 running，只要 backup 存在就返回 backup
+          p = 'common/security/selinux/selinuxfs.c'
+          s = open(p).read()
+          s = s.replace(
+              'if (current_uid().val >= 10000 && ksu_selinux_hide_is_running() && backup_sepolicy)',
+              'if (current_uid().val >= 10000 && backup_sepolicy)'
+          )
+          open(p, 'w').write(s)
+          PY
+          grep -n 'KSU_FEATURE_SELINUX_HIDE' common/drivers/kernelsu/policy/feature.c | head
+          grep -n 'return;' common/drivers/kernelsu/feature/selinux_hide.c | head
+
       - name: 应用lz4 1.10.0 & zstd 1.5.7补丁
         if: inputs.lz4_enable
         run: |
