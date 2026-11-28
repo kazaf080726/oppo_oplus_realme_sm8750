@@ -479,16 +479,6 @@ jobs:
               s = s.replace(marker, marker + inject, 1)
               open(p, 'w').write(s)
 
-          # keep backup_sepolicy across boot_completed
-          p = 'common/drivers/kernelsu/feature/selinux_hide.c'
-          s = open(p).read()
-          marker = 'void __init ksu_selinux_hide_init()\n{\n'
-          if marker not in s:
-              raise SystemExit('selinux_hide_init marker missing')
-          if 'ksu_selinux_hide_keep_backup = true;' not in s:
-              s = s.replace(marker, marker + '\tksu_selinux_hide_keep_backup = true;\n', 1)
-              open(p, 'w').write(s)
-
           # policy filter only needs a valid backup, not the running flag
           p = 'common/security/selinux/selinuxfs.c'
           s = open(p).read()
@@ -499,7 +489,6 @@ jobs:
           open(p, 'w').write(s)
           PY
           grep -n 'KSU_FEATURE_SELINUX_HIDE' common/drivers/kernelsu/policy/feature.c | head
-          grep -n 'ksu_selinux_hide_keep_backup = true' common/drivers/kernelsu/feature/selinux_hide.c
 
       - name: 默认启用 SELinux 隐藏
         if: inputs.ksu_type == 'sukisu'
