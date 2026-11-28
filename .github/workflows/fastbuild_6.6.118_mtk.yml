@@ -311,6 +311,14 @@ jobs:
             echo "已选择无内置KernelSU模式，跳过KernelSU配置..."
           fi
 
+      - name: 固定 SukiSU 源码到 35114
+        if: inputs.ksu_type == 'sukisu'
+        run: |
+          cd kernel_workspace/KernelSU
+          git fetch --depth=1 origin e103dde4 2>/dev/null || true
+          git checkout e103dde4
+          git log -1 --oneline
+
       - name: 固定 SukiSU CI 版本号
         if: inputs.ksu_type == 'sukisu'
         run: |
