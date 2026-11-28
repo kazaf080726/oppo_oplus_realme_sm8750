@@ -311,14 +311,6 @@ jobs:
             echo "已选择无内置KernelSU模式，跳过KernelSU配置..."
           fi
 
-      - name: 固定 SukiSU 源码到 35114
-        if: inputs.ksu_type == 'sukisu'
-        run: |
-          cd kernel_workspace/KernelSU
-          git fetch --depth=1 origin e103dde4 2>/dev/null || true
-          git checkout e103dde4
-          git log -1 --oneline
-
       - name: 固定 SukiSU CI 版本号
         if: inputs.ksu_type == 'sukisu'
         run: |
@@ -380,6 +372,34 @@ jobs:
             patch -p1 -F 3 < 10_enable_susfs_for_ksu.patch || true
           fi
           
+      - name: 为 SELinux policy 创建备份
+        if: inputs.ksu_type == 'sukisu'
+        run: |
+          cd kernel_workspace
+          python3 - <<'PY'
+          p = 'common/drivers/kernelsu/selinux/rules.c'
+          s = open(p).read()
+          # Declare the backup only if this source revision does not already have it.
+          if 'struct selinux_policy *backup_sepolicy;' not in s:
+              marker = '#define ALL NULL'
+              if marker not in s:
+                  raise SystemExit('rules.c marker missing')
+              s = s.replace(marker, 'struct selinux_policy *backup_sepolicy;\n\n' + marker, 1)
+          # Capture the pre-KSU policy before applying the patched policy.
+          old = 'old_pol = rcu_dereference_protected(selinux_state.policy, lockdep_is_held(&selinux_state.policy_mutex));'
+          if 'backup_sepolicy = ksu_dup_sepolicy(old_pol)' not in s:
+              if old not in s:
+                  raise SystemExit('old_pol assignment missing')
+              inject = old + ('\n\tif (!backup_sepolicy) {\n'
+                              '\t\tbackup_sepolicy = ksu_dup_sepolicy(old_pol);\n'
+                              '\t\tif (IS_ERR(backup_sepolicy))\n'
+                              '\t\t\tbackup_sepolicy = NULL;\n'
+                              '\t}')
+              s = s.replace(old, inject, 1)
+          open(p, 'w').write(s)
+          PY
+          grep -n 'backup_sepolicy' common/drivers/kernelsu/selinux/rules.c | head
+
       - name: 隐藏 SELinux policy dump
         if: inputs.ksu_type == 'sukisu'
         run: |
