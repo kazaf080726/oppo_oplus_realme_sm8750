@@ -332,6 +332,17 @@ jobs:
           echo "CONFIG_SECCOMP_FILTER=y" >> ./common/arch/arm64/configs/gki_defconfig
           echo "CONFIG_HAVE_ARCH_SECCOMP_FILTER=y" >> ./common/arch/arm64/configs/gki_defconfig
 
+      - name: 兼容 6.6.118 SELinux AVC API
+        if: inputs.ksu_type == 'sukisu'
+        run: |
+          cd kernel_workspace
+          f=common/drivers/kernelsu/include/util.h
+          test -f "$f"
+          if grep -q 'avc_has_perm(&selinux_state, __VA_ARGS__)' "$f"; then
+            sed -i 's/avc_has_perm(&selinux_state, __VA_ARGS__)/avc_has_perm(__VA_ARGS__)/g' "$f"
+          fi
+          grep -n 'ksu_avc_has_perm_compat' "$f"
+
       - name: 应用 KernelSU & SUSFS 补丁
         if: inputs.susfs_enable
         run: |
