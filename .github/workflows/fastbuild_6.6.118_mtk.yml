@@ -490,6 +490,19 @@ jobs:
           PY
           grep -n 'KSU_FEATURE_SELINUX_HIDE' common/drivers/kernelsu/policy/feature.c | head
 
+      - name: 诊断 SELinux hide 源码
+        if: inputs.ksu_type == 'sukisu'
+        run: |
+          cd kernel_workspace
+          echo "--- path ---"
+          readlink -f common/drivers/kernelsu/feature/selinux_hide.c || true
+          ls -l common/drivers/kernelsu/feature/selinux_hide.c || true
+          echo "--- functions ---"
+          grep -nE 'selinux_hide|post_fs|fake_status|seqno' common/drivers/kernelsu/feature/selinux_hide.c | head -80 || true
+          echo "--- source commit ---"
+          git -C common/drivers/kernelsu rev-parse HEAD 2>/dev/null || true
+          git -C common/drivers/kernelsu remote -v 2>/dev/null || true
+
       - name: 默认启用 SELinux 隐藏
         if: inputs.ksu_type == 'sukisu'
         run: |
