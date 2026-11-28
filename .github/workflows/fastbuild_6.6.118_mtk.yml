@@ -495,12 +495,13 @@ jobs:
         run: |
           cd kernel_workspace
           python3 - <<'PY'
+          import re
           p = 'common/drivers/kernelsu/feature/selinux_hide.c'
           s = open(p).read()
-          marker = 'void ksu_selinux_hide_handle_post_fs_data()\n{\n'
-          if marker not in s:
+          m = re.search(r'void\s+ksu_selinux_hide_handle_post_fs_data\s*\([^)]*\)\s*\{', s)
+          if not m:
               raise SystemExit('post_fs_data marker missing')
-          idx = s.find(marker) + len(marker)
+          idx = m.end()
           tail = s[idx:s.find('}', idx)]
           if 'selinux_hide_feature_set(1)' not in tail:
               inject = (
