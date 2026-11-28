@@ -6,7 +6,7 @@ env:
   KERNEL_VERSION: '6.6'
   SUB_VERSION: '89'
   KERNEL_NAME: 'android15-8-g29d86c5fc9dd-abogki428889875-4k'
-  SUKISU_CI_VERSION: '35082'
+  SUKISU_CI_VERSION: '35114'
   SUKISU_CI_UAPI: '6'
   CCACHE_KEY: ccache-ecsv4-6.6.89
 
@@ -361,7 +361,7 @@ jobs:
           for p in ('common/drivers/kernelsu/Kbuild', 'common/drivers/kernelsu/Makefile'):
               if os.path.exists(p):
                   s = open(p).read()
-                  s = re.sub(r'^KSU_VERSION\s*:=.*$', 'KSU_VERSION := 35082', s, flags=re.M)
+                  s = re.sub(r'^KSU_VERSION\s*:=.*$', 'KSU_VERSION := 35114', s, flags=re.M)
                   open(p, 'w').write(s)
           PY
           grep -R '^KSU_VERSION' common/drivers/kernelsu/Kbuild common/drivers/kernelsu/Makefile 2>/dev/null | head
