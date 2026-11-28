@@ -372,6 +372,93 @@ jobs:
             patch -p1 -F 3 < 10_enable_susfs_for_ksu.patch || true
           fi
           
+      - name: 隐藏 SELinux policy dump
+        if: inputs.ksu_type == 'sukisu'
+        run: |
+          cd kernel_workspace
+          python3 - <<'PY'
+          import os
+
+          # 1) 在 services.c 暴露一个“按指定 policy 序列化”的 helper
+          svc = 'common/security/selinux/ss/services.c'
+          s = open(svc).read()
+          if 'security_read_policy_from' not in s:
+              marker = 'int security_read_policy('
+              if marker not in s:
+                  raise SystemExit('security_read_policy marker not found')
+              helper = (
+                  'int security_read_policy_from(struct selinux_policy *policy, void **data, size_t *len)\n'
+                  '{\n'
+                  '\tint rc;\n'
+                  '\n'
+                  '\tif (!policy || !data || !len)\n'
+                  '\t\treturn -EINVAL;\n'
+                  '\t*len = policy->policydb.len;\n'
+                  '\t*data = vmalloc_user(*len);\n'
+                  '\tif (!*data)\n'
+                  '\t\treturn -ENOMEM;\n'
+                  '\trc = __security_read_policy(policy, *data, len);\n'
+                  '\tif (rc) {\n'
+                  '\t\tvfree(*data);\n'
+                  '\t\t*data = NULL;\n'
+                  '\t\t*len = 0;\n'
+                  '\t}\n'
+                  '\treturn rc;\n'
+                  '}\n\n'
+              )
+              s = s.replace(marker, helper + marker, 1)
+              open(svc, 'w').write(s)
+
+          # 2) selinuxfs 打开 policy 时，普通应用改用 backup policy
+          fs = 'common/security/selinux/selinuxfs.c'
+          s = open(fs).read()
+          if 'ksu_selinux_hide_is_running' not in s:
+              marker = 'static int sel_open_policy'
+              if marker not in s:
+                  raise SystemExit('sel_open_policy marker not found')
+              decl = (
+                  '#ifdef CONFIG_KSU\n'
+                  'extern struct selinux_policy *backup_sepolicy;\n'
+                  'extern bool ksu_selinux_hide_is_running(void);\n'
+                  'extern int security_read_policy_from(struct selinux_policy *policy, void **data, size_t *len);\n'
+                  '#endif\n\n'
+              )
+              s = s.replace(marker, decl + marker, 1)
+              open(fs, 'w').write(s)
+
+          s = open(fs).read()
+          if 'security_read_policy_from(backup_sepolicy' not in s:
+              old1 = 'rc = security_read_policy(state, &plm->data, &plm->len);'
+              old2 = 'rc = security_read_policy(&plm->data, &plm->len);'
+              if old1 in s:
+                  old = old1
+              elif old2 in s:
+                  old = old2
+              else:
+                  raise SystemExit('security_read_policy call not found')
+              new = (
+                  '#ifdef CONFIG_KSU\n'
+                  '\tif (current_uid().val >= 10000 && ksu_selinux_hide_is_running() && backup_sepolicy)\n'
+                  '\t\trc = security_read_policy_from(backup_sepolicy, &plm->data, &plm->len);\n'
+                  '\telse\n'
+                  '#endif\n'
+                  '\t\t' + old
+              )
+              s = s.replace('\t' + old, new, 1)
+              open(fs, 'w').write(s)
+
+          # 3) 暴露 hide running 状态
+          hide = 'common/drivers/kernelsu/feature/selinux_hide.c'
+          s = open(hide).read()
+          if 'ksu_selinux_hide_is_running' not in s:
+              s = s.rstrip() + '\n\nbool ksu_selinux_hide_is_running(void)\n{\n\treturn ksu_selinux_hide_running;\n}\n'
+              open(hide, 'w').write(s)
+
+          print('policy dump hide patched')
+          PY
+          grep -n 'security_read_policy_from' common/security/selinux/ss/services.c common/security/selinux/selinuxfs.c
+          grep -n 'ksu_selinux_hide_is_running' common/drivers/kernelsu/feature/selinux_hide.c
+
       - name: 应用lz4 1.10.0 & zstd 1.5.7补丁
         if: inputs.lz4_enable
         run: |
